@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.savvasg28"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 kotlin {
     jvmToolchain(17)
