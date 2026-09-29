@@ -1,5 +1,6 @@
 package io.github.savvasg28.applinks
 
+import groovy.json.JsonOutput
 import org.gradle.api.GradleException
 import org.gradle.api.logging.Logger
 import java.io.File
@@ -39,19 +40,16 @@ class Report(private val task: String, private val variant: String, private val 
 
     private fun write(file: File) {
         file.parentFile.mkdirs()
-        file.writeText(
-            Json.write(
-                linkedMapOf(
-                    "task" to task,
-                    "variant" to variant,
-                    "applicationId" to applicationId,
-                    "passed" to passed,
-                    "hosts" to hosts,
-                    "errors" to errors,
-                    "warnings" to warnings,
-                    "info" to info,
-                )
-            ) + "\n"
+        val json = linkedMapOf(
+            "task" to task,
+            "variant" to variant,
+            "applicationId" to applicationId,
+            "passed" to passed,
+            "hosts" to hosts,
+            "errors" to errors,
+            "warnings" to warnings,
+            "info" to info,
         )
+        file.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(json)) + "\n")
     }
 }

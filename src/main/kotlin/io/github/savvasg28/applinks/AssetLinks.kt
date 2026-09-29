@@ -1,5 +1,7 @@
 package io.github.savvasg28.applinks
 
+import groovy.json.JsonException
+import groovy.json.JsonSlurper
 import java.net.HttpURLConnection
 import java.net.URI
 
@@ -84,10 +86,11 @@ class AssetLinksFetcher(
         warnings: MutableList<String>,
         depth: Int,
     ): List<AndroidStatement> {
+        // Gradle bundles Groovy's JSON support, so this adds nothing to consumers' build classpath.
         val root = try {
-            Json.parse(body)
-        } catch (e: Json.JsonException) {
-            errors += "$url: ${e.message}"
+            JsonSlurper().parseText(body)
+        } catch (e: JsonException) {
+            errors += "$url: invalid JSON: ${e.message?.lineSequence()?.firstOrNull()}"
             return emptyList()
         }
         if (root !is List<*>) {

@@ -54,7 +54,7 @@ class AssetLinksFetcherTest {
         serve("/html", 200, "text/html", "[]")
         serve("/bad", 200, "application/json", "{not json")
         serve("/missing", 404, "application/json", "")
-        listOf("redirect" to "redirect to", "html" to "Content-Type", "bad" to "Invalid JSON", "missing" to "HTTP 404").forEach { (path, expected) ->
+        listOf("redirect" to "redirect to", "html" to "Content-Type", "bad" to "invalid JSON", "missing" to "HTTP 404").forEach { (path, expected) ->
             val result = fetcher("h" to "$base/$path").fetch("h")
             assertTrue(result.errors.single().contains(expected), "$path: ${result.errors}")
         }
