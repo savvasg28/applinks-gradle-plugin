@@ -1,11 +1,13 @@
+import org.gradle.plugin.compatibility.compatibility
+
 plugins {
     `java-gradle-plugin`
     kotlin("jvm") version "2.3.0"
-    id("com.gradle.plugin-publish") version "1.3.1"
+    id("com.gradle.plugin-publish") version "2.2.1"
 }
 
 group = "io.github.savvasg28"
-version = "0.1.0"
+version = "0.1.1"
 
 kotlin {
     jvmToolchain(17)
@@ -39,6 +41,12 @@ gradlePlugin {
             displayName = "App Links for debug builds"
             description = "Force-approves Android App Link domains on connected devices for debuggable variants, so https links open in the app instead of the browser on debug builds."
             tags = listOf("android", "app-links", "deep-links", "adb", "testing")
+            compatibility {
+                features {
+                    // Every task declares its inputs and reads only providers; verified by the sample build in tests.
+                    configurationCache = true
+                }
+            }
         }
     }
 }
