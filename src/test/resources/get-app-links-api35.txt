@@ -1,0 +1,11 @@
+  dev.spike.applinks:
+    ID: 989b3109-66fc-4dea-afc9-23d7596e6ebd
+    Signatures: [C3:62:47:DB:64:64:64:8C:82:A2:1D:18:8B:D3:F2:0D:9C:73:F5:86:4B:A8:FF:78:E5:86:A2:D9:F4:36:08:9B]
+    Domain verification state:
+      spike.example.com: 1024
+      app.example.com: approved
+  User 0:
+    Verification link handling allowed: true
+    Selection state:
+      Disabled:
+        spike.example.com
