@@ -30,6 +30,7 @@ dependencies {
 gradlePlugin {
     website = "https://github.com/savvasg28/applinks-gradle-plugin"
     vcsUrl = "https://github.com/savvasg28/applinks-gradle-plugin"
+    // License: Apache-2.0, see LICENSE
     testSourceSets(functionalTest)
     plugins {
         create("appLinks") {

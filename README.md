@@ -88,3 +88,7 @@ The release variant needs a signing config, and that key's fingerprint must be i
 ```bash
 ./gradlew check
 ```
+
+## License
+
+[Apache 2.0](LICENSE)
