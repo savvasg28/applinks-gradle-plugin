@@ -17,14 +17,15 @@ import java.net.InetSocketAddress
 /** checkAppLinks against a local server standing in for each host, verifyAppLinks against a fake adb. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CheckAndVerifyFunctionalTest {
-
     private lateinit var project: SampleProject
     private lateinit var server: HttpServer
     private val base get() = "http://localhost:${server.address.port}"
     private val other = "11:" + "22:".repeat(30) + "33"
 
     @BeforeAll
-    fun start(@TempDir dir: File) {
+    fun start(
+        @TempDir dir: File,
+    ) {
         project = SampleProject(dir)
         server = HttpServer.create(InetSocketAddress("localhost", 0), 0).also { it.start() }
     }
@@ -34,27 +35,34 @@ class CheckAndVerifyFunctionalTest {
 
     @BeforeEach
     fun writeProject() {
-        server.removeContextQuietly("/sample.uk"); server.removeContextQuietly("/app.sample.uk")
+        server.removeContextQuietly("/sample.uk")
+        server.removeContextQuietly("/app.sample.uk")
         project.write(
-            appLinks = """
+            appLinks =
+                """
                 assetLinksUrlOverrides.put('sample.uk', '$base/sample.uk')
                 assetLinksUrlOverrides.put('app.sample.uk', '$base/app.sample.uk')
                 excludedHosts.add('excluded.sample.uk')
-            """.trimIndent(),
-            extraFilters = """
+                """.trimIndent(),
+            extraFilters =
+                """
                 <intent-filter>
                   <action android:name="android.intent.action.VIEW"/>
                   <category android:name="android.intent.category.DEFAULT"/>
                   <category android:name="android.intent.category.BROWSABLE"/>
                   <data android:scheme="https" android:host="link.payment-provider.com"/>
                 </intent-filter>
-            """.trimIndent(),
+                """.trimIndent(),
         )
     }
 
     private fun HttpServer.removeContextQuietly(path: String) = runCatching { removeContext(path) }
 
-    private fun serveAssetLinks(host: String, vararg fingerprints: String, packageName: String = "uk.co.sample") {
+    private fun serveAssetLinks(
+        host: String,
+        vararg fingerprints: String,
+        packageName: String = "uk.co.sample",
+    ) {
         val body = """[{"relation": ["delegate_permission/common.handle_all_urls"],
             "target": {"namespace": "android_app", "package_name": "$packageName",
                        "sha256_cert_fingerprints": [${fingerprints.joinToString { "\"$it\"" }}]}}]"""
@@ -97,7 +105,14 @@ class CheckAndVerifyFunctionalTest {
         serveAssetLinks("app.sample.uk", playKey)
         project.appendBuild("appLinks { additionalCertificateFingerprints.add('$playKey') }")
 
-        assertEquals(TaskOutcome.SUCCESS, project.run("checkAppLinksRelease").build().task(":checkAppLinksRelease")?.outcome)
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            project
+                .run("checkAppLinksRelease")
+                .build()
+                .task(":checkAppLinksRelease")
+                ?.outcome,
+        )
     }
 
     @Test
@@ -106,12 +121,19 @@ class CheckAndVerifyFunctionalTest {
         serveAssetLinks("app.sample.uk", other)
         // First poll answers "none" (verifier still running), later polls answer for real.
         val counter = File(project.dir, "poll-count")
-        val fakeAdb = project.fakeAdb(
-            "fake-adb-verify", devices = mapOf("emulator-5554" to 35),
-            getAppLinks = """n=${'$'}(cat "${counter.absolutePath}" 2>/dev/null || echo 0); echo ${'$'}((n+1)) > "${counter.absolutePath}"
-                if [ "${'$'}n" -lt 1 ]; then ${SampleProject.appLinksOutput(project.fingerprint, "sample.uk" to "none", "app.sample.uk" to "none")}
+        val fakeAdb =
+            project.fakeAdb(
+                "fake-adb-verify",
+                devices = mapOf("emulator-5554" to 35),
+                getAppLinks = """n=${'$'}(cat "${counter.absolutePath}" 2>/dev/null || echo 0)
+                echo ${'$'}((n+1)) > "${counter.absolutePath}"
+                if [ "${'$'}n" -lt 1 ]; then ${SampleProject.appLinksOutput(
+                    project.fingerprint,
+                    "sample.uk" to "none",
+                    "app.sample.uk" to "none",
+                )}
                 else ${SampleProject.appLinksOutput(project.fingerprint, "sample.uk" to "verified", "app.sample.uk" to "1024")}; fi""",
-        )
+            )
         project.appendBuild("appLinks { adbExecutable = '${fakeAdb.absolutePath}'; verifyTimeoutSeconds = 2 }")
 
         val result = project.run("verifyAppLinksStaging").buildAndFail()
@@ -121,7 +143,10 @@ class CheckAndVerifyFunctionalTest {
         assertTrue(commands.any { "pm verify-app-links --re-verify uk.co.sample" in it }, commands.toString())
         assertTrue(commands.count { "pm get-app-links" in it } >= 2, "must poll more than once")
         assertTrue(result.output.contains("sample.uk") && result.output.contains("verified"), result.output)
-        assertTrue(result.output.contains("app.sample.uk is '1024': installed cert ${project.fingerprint} is not in assetlinks.json"), result.output)
+        assertTrue(
+            result.output.contains("app.sample.uk is '1024': installed cert ${project.fingerprint} is not in assetlinks.json"),
+            result.output,
+        )
         assertTrue(project.report("verifyAppLinksStaging").contains("\"passed\": false"))
     }
 

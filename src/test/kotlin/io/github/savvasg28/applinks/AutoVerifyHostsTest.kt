@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class AutoVerifyHostsTest {
-
     @Test
     fun `concrete hosts become the pm argument, a wildcard forces all`() {
         val hosts = AutoVerifyHosts.of(listOf("example.com", "app.example.com", "example.com"))

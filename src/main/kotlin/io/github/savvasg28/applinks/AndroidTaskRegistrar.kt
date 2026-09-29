@@ -9,8 +9,10 @@ import org.gradle.api.Project
 
 /** The only class that touches AGP types. See [AppLinksPlugin] for why. */
 internal object AndroidTaskRegistrar {
-
-    fun register(project: Project, extension: AppLinksExtension) {
+    fun register(
+        project: Project,
+        extension: AppLinksExtension,
+    ) {
         val components = project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
         val android = project.extensions.getByType(ApplicationExtension::class.java)
         val reportDir = project.layout.buildDirectory.dir("reports/app-links")
@@ -21,38 +23,48 @@ internal object AndroidTaskRegistrar {
             val capitalised = variant.name.replaceFirstChar { it.uppercase() }
             val manifest = variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
 
-            fun <T : AppLinksTask> register(name: String, type: Class<T>, description: String, configure: (T) -> Unit) =
-                project.tasks.register(name, type) { task ->
-                    task.group = AppLinksPlugin.TASK_GROUP
-                    task.description = description
-                    task.variantName.set(variant.name)
-                    task.applicationId.set(variant.applicationId)
-                    task.mergedManifest.set(manifest)
-                    task.excludedHosts.set(extension.excludedHosts)
-                    task.reportFile.set(reportDir.map { it.file("$name.json") })
-                    if (task is DeviceAppLinksTask) {
-                        task.deviceSerials.set(extension.deviceSerials)
-                        task.adbExecutable.set(adb)
-                    }
-                    configure(task)
+            fun <T : AppLinksTask> register(
+                name: String,
+                type: Class<T>,
+                description: String,
+                configure: (T) -> Unit,
+            ) = project.tasks.register(name, type) { task ->
+                task.group = AppLinksPlugin.TASK_GROUP
+                task.description = description
+                task.variantName.set(variant.name)
+                task.applicationId.set(variant.applicationId)
+                task.mergedManifest.set(manifest)
+                task.excludedHosts.set(extension.excludedHosts)
+                task.reportFile.set(reportDir.map { it.file("$name.json") })
+                if (task is DeviceAppLinksTask) {
+                    task.deviceSerials.set(extension.deviceSerials)
+                    task.adbExecutable.set(adb)
                 }
+                configure(task)
+            }
 
-            fun approve(name: String, failOnError: Boolean, description: String) =
-                register(name, ApproveAppLinksTask::class.java, description) { task ->
-                    task.debuggable.set(variant.debuggable)
-                    task.allowedVariants.set(extension.allowedVariants)
-                    task.failOnError.set(failOnError)
-                }
+            fun approve(
+                name: String,
+                failOnError: Boolean,
+                description: String,
+            ) = register(name, ApproveAppLinksTask::class.java, description) { task ->
+                task.debuggable.set(variant.debuggable)
+                task.allowedVariants.set(extension.allowedVariants)
+                task.failOnError.set(failOnError)
+            }
 
             approve(
-                "approveAppLinks$capitalised", failOnError = true,
+                "approveAppLinks$capitalised",
+                failOnError = true,
                 "Force-approves autoVerify App Link hosts of the ${variant.name} variant on connected devices.",
             )
             if (variant.debuggable) {
-                val auto = approve(
-                    "autoApproveAppLinks$capitalised", failOnError = false,
-                    "Runs after assemble/install of ${variant.name}; like approveAppLinks but never fails the build.",
-                )
+                val auto =
+                    approve(
+                        "autoApproveAppLinks$capitalised",
+                        failOnError = false,
+                        "Runs after assemble/install of ${variant.name}; like approveAppLinks but never fails the build.",
+                    )
                 auto.configure { it.group = null }
                 val hooks = setOf("assemble$capitalised", "install$capitalised")
                 // configureEach is lazy per task and, unlike named(Spec), exists on every Gradle 8.x.
@@ -62,7 +74,8 @@ internal object AndroidTaskRegistrar {
             }
 
             register(
-                "checkAppLinks$capitalised", CheckAppLinksTask::class.java,
+                "checkAppLinks$capitalised",
+                CheckAppLinksTask::class.java,
                 "Checks the ${variant.name} manifest and each host's assetlinks.json without a device.",
             ) { task ->
                 task.extraFingerprints.set(extension.additionalCertificateFingerprints)
@@ -76,7 +89,8 @@ internal object AndroidTaskRegistrar {
             }
 
             register(
-                "verifyAppLinks$capitalised", VerifyAppLinksTask::class.java,
+                "verifyAppLinks$capitalised",
+                VerifyAppLinksTask::class.java,
                 "Runs real App Links verification for the installed ${variant.name} variant on connected devices.",
             ) { task ->
                 task.debuggable.set(variant.debuggable)
@@ -87,10 +101,14 @@ internal object AndroidTaskRegistrar {
     }
 
     /** Build type wins, then the first flavor that sets one, mirroring AGP. */
-    private fun signingConfigFor(android: ApplicationExtension, variant: ApplicationVariant): ApkSigningConfig? {
+    private fun signingConfigFor(
+        android: ApplicationExtension,
+        variant: ApplicationVariant,
+    ): ApkSigningConfig? {
         val fromBuildType = variant.buildType?.let { android.buildTypes.findByName(it)?.signingConfig }
         if (fromBuildType != null) return fromBuildType
-        return variant.productFlavors.asSequence()
+        return variant.productFlavors
+            .asSequence()
             .mapNotNull { (_, flavor) -> android.productFlavors.findByName(flavor)?.signingConfig }
             .firstOrNull()
     }

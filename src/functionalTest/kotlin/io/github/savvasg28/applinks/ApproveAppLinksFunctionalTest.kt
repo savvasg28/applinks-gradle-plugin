@@ -13,17 +13,26 @@ import java.io.File
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ApproveAppLinksFunctionalTest {
-
     private lateinit var project: SampleProject
     private lateinit var fakeAdb: File
 
     @BeforeAll
-    fun createProject(@TempDir dir: File) {
+    fun createProject(
+        @TempDir dir: File,
+    ) {
         project = SampleProject(dir)
-        fakeAdb = project.fakeAdb(
-            "fake-adb", devices = mapOf("emulator-5554" to 35, "R5CX20" to 30),
-            getAppLinks = SampleProject.appLinksOutput("AA", "sample.uk" to "approved", "app.sample.uk" to "approved", "excluded.sample.uk" to "1024"),
-        )
+        fakeAdb =
+            project.fakeAdb(
+                "fake-adb",
+                devices = mapOf("emulator-5554" to 35, "R5CX20" to 30),
+                getAppLinks =
+                    SampleProject.appLinksOutput(
+                        "AA",
+                        "sample.uk" to "approved",
+                        "app.sample.uk" to "approved",
+                        "excluded.sample.uk" to "1024",
+                    ),
+            )
     }
 
     @BeforeEach
@@ -37,7 +46,10 @@ class ApproveAppLinksFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":approveAppLinksDebug")?.outcome)
         val commands = project.adbLog.readLines()
-        assertTrue("-s emulator-5554 shell pm set-app-links --package uk.co.sample.debug 2 sample.uk app.sample.uk" in commands, commands.toString())
+        assertTrue(
+            "-s emulator-5554 shell pm set-app-links --package uk.co.sample.debug 2 sample.uk app.sample.uk" in commands,
+            commands.toString(),
+        )
         assertTrue(commands.none { "R5CX20" in it && "set-app-links" in it }, "API 30 device must be skipped")
         assertTrue(result.output.contains("R5CX20: API 30"), result.output)
         assertTrue(project.report("approveAppLinksDebug").contains("\"passed\": true"))

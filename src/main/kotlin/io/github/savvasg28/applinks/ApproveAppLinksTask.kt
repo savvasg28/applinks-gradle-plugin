@@ -4,6 +4,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 
 /**
  * Runs `pm set-app-links --package <id> 2 <hosts>` on every connected Android 12+ device, then reads the
@@ -14,10 +15,12 @@ import org.gradle.api.tasks.TaskAction
  * Registered twice per debuggable variant: `approveAppLinks<Variant>` for people, which fails on problems,
  * and `autoApproveAppLinks<Variant>` as a finalizer of assemble/install, which only logs them.
  */
+@DisableCachingByDefault(because = "Talks to devices or servers whose state is not a build input")
 abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
-
     @get:Input abstract val debuggable: Property<Boolean>
+
     @get:Input abstract val allowedVariants: SetProperty<String>
+
     @get:Input abstract val failOnError: Property<Boolean>
 
     @TaskAction
@@ -30,17 +33,18 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
             report.error(
                 "Refusing to force-approve App Links for non-debuggable variant '$variant' ($packageName). " +
                     "A release build failing verification is a real bug. If this variant is meant for testing, add " +
-                    "appLinks { allowedVariants.add(\"$variant\") }."
+                    "appLinks { allowedVariants.add(\"$variant\") }.",
             )
             return finish(report)
         }
 
-        val hosts = try {
-            hostsToHandle()
-        } catch (e: IllegalArgumentException) {
-            report.error(e.message.orEmpty())
-            return finish(report)
-        }
+        val hosts =
+            try {
+                hostsToHandle()
+            } catch (e: IllegalArgumentException) {
+                report.error(e.message.orEmpty())
+                return finish(report)
+            }
         if (hosts.isEmpty) {
             report.note("No autoVerify hosts to approve.")
             return finish(report)
@@ -49,12 +53,13 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
             report.warning("wildcard host present, approving 'all'; excludedHosts cannot be honoured for this run")
         }
 
-        val devices = try {
-            connectedDevices()
-        } catch (e: AdbException) {
-            report.error("App Links not approved: ${e.message}")
-            return finish(report)
-        }
+        val devices =
+            try {
+                connectedDevices()
+            } catch (e: AdbException) {
+                report.error("App Links not approved: ${e.message}")
+                return finish(report)
+            }
         if (devices.isEmpty()) report.error("App Links not approved: ${noDevicesMessage()}")
 
         for (device in devices) {
@@ -67,7 +72,12 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
         finish(report)
     }
 
-    private fun approveOn(device: AppLinksDevice, packageName: String, hosts: AutoVerifyHosts, report: Report) {
+    private fun approveOn(
+        device: AppLinksDevice,
+        packageName: String,
+        hosts: AutoVerifyHosts,
+        report: Report,
+    ) {
         if (!device.supportsDomainVerification) {
             report.note(device.unsupportedReason)
             return
@@ -88,6 +98,5 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
         }
     }
 
-    private fun finish(report: Report) =
-        report.finish(logger, reportFile.get().asFile, "App Links approval", failOnError.get())
+    private fun finish(report: Report) = report.finish(logger, reportFile.get().asFile, "App Links approval", failOnError.get())
 }

@@ -4,6 +4,9 @@ plugins {
     `java-gradle-plugin`
     kotlin("jvm") version "2.3.0"
     id("com.gradle.plugin-publish") version "2.2.1"
+    id("com.diffplug.spotless") version "7.2.1"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.18.1"
 }
 
 group = "io.github.savvasg28"
@@ -11,6 +14,10 @@ version = "0.1.1"
 
 kotlin {
     jvmToolchain(17)
+    // Let the functional tests use internal declarations, as the unit tests already can.
+    target.compilations.configureEach {
+        if (name == "functionalTest") associateWith(target.compilations.getByName("main"))
+    }
 }
 
 val functionalTest: SourceSet by sourceSets.creating
@@ -39,7 +46,8 @@ gradlePlugin {
             id = "io.github.savvasg28.applinks"
             implementationClass = "io.github.savvasg28.applinks.AppLinksPlugin"
             displayName = "App Links for debug builds"
-            description = "Force-approves Android App Link domains on connected devices for debuggable variants, so https links open in the app instead of the browser on debug builds."
+            description =
+                "Force-approves Android App Link domains on connected devices for debuggable variants, so https links open in the app instead of the browser on debug builds."
             tags = listOf("android", "app-links", "deep-links", "adb", "testing")
             compatibility {
                 features {
@@ -66,4 +74,35 @@ tasks.test {
 
 tasks.check {
     dependsOn("functionalTest")
+}
+
+// Formatting: ktlint through Spotless. `spotlessApply` fixes, `spotlessCheck` runs on `check`.
+spotless {
+    kotlin {
+        target("src/**/*.kt")
+        ktlint("1.5.0")
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktlint("1.5.0")
+    }
+}
+
+// Static analysis. detekt.yml only overrides the defaults it names.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("detekt.yml")
+    source.setFrom("src/main/kotlin", "src/test/kotlin", "src/functionalTest/kotlin")
+}
+
+// Turn Gradle's task-property validation warnings into failures.
+tasks.validatePlugins {
+    enableStricterValidation = true
+}
+
+// The public API is dumped to api/*.api and checked on every build; run `apiDump` after an intended change.
+apiValidation {
+    ignoredPackages.add("io.github.savvasg28.applinks.internal")
 }

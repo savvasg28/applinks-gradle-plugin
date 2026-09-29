@@ -9,11 +9,18 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 class AppLinksDeviceTest {
-
-    private class FakeAdb(private val api: String, private val installed: Boolean) : Adb {
+    private class FakeAdb(
+        private val api: String,
+        private val installed: Boolean,
+    ) : Adb {
         val commands = mutableListOf<String>()
+
         override fun serials() = listOf("emulator-5554")
-        override fun shell(serial: String, command: String): String {
+
+        override fun shell(
+            serial: String,
+            command: String,
+        ): String {
             commands += command
             return when {
                 command.startsWith("getprop") -> "$api\n"
@@ -41,10 +48,15 @@ class AppLinksDeviceTest {
         assertFalse(device.setAppLinks("x", 2, "h"))
         assertNull(device.appLinks("x"))
 
-        val broken = object : Adb {
-            override fun serials() = emptyList<String>()
-            override fun shell(serial: String, command: String): String = throw AdbException("device offline")
-        }
+        val broken =
+            object : Adb {
+                override fun serials() = emptyList<String>()
+
+                override fun shell(
+                    serial: String,
+                    command: String,
+                ): String = throw AdbException("device offline")
+            }
         assertThrows(AdbException::class.java) { AppLinksDevice(broken, "s").setAppLinks("x", 2, "h") }
     }
 

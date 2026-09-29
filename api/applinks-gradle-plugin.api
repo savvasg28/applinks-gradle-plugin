@@ -1,0 +1,65 @@
+public abstract class io/github/savvasg28/applinks/AppLinksExtension {
+	public fun <init> ()V
+	public abstract fun getAdbExecutable ()Lorg/gradle/api/provider/Property;
+	public abstract fun getAdditionalCertificateFingerprints ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getAllowedVariants ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getAssetLinksUrlOverrides ()Lorg/gradle/api/provider/MapProperty;
+	public abstract fun getAutoApproveDebuggableVariants ()Lorg/gradle/api/provider/Property;
+	public abstract fun getDeviceSerials ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getExcludedHosts ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getVerifyTimeoutSeconds ()Lorg/gradle/api/provider/Property;
+}
+
+public final class io/github/savvasg28/applinks/AppLinksPlugin : org/gradle/api/Plugin {
+	public static final field Companion Lio/github/savvasg28/applinks/AppLinksPlugin$Companion;
+	public static final field TASK_GROUP Ljava/lang/String;
+	public fun <init> ()V
+	public synthetic fun apply (Ljava/lang/Object;)V
+	public fun apply (Lorg/gradle/api/Project;)V
+}
+
+public final class io/github/savvasg28/applinks/AppLinksPlugin$Companion {
+}
+
+public abstract class io/github/savvasg28/applinks/AppLinksTask : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public abstract fun getApplicationId ()Lorg/gradle/api/provider/Property;
+	public abstract fun getExcludedHosts ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getMergedManifest ()Lorg/gradle/api/file/RegularFileProperty;
+	public abstract fun getReportFile ()Lorg/gradle/api/file/RegularFileProperty;
+	public abstract fun getVariantName ()Lorg/gradle/api/provider/Property;
+}
+
+public abstract class io/github/savvasg28/applinks/ApproveAppLinksTask : io/github/savvasg28/applinks/DeviceAppLinksTask {
+	public fun <init> ()V
+	public final fun approve ()V
+	public abstract fun getAllowedVariants ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getDebuggable ()Lorg/gradle/api/provider/Property;
+	public abstract fun getFailOnError ()Lorg/gradle/api/provider/Property;
+}
+
+public abstract class io/github/savvasg28/applinks/CheckAppLinksTask : io/github/savvasg28/applinks/AppLinksTask {
+	public fun <init> ()V
+	public final fun check ()V
+	public abstract fun getAssetLinksUrlOverrides ()Lorg/gradle/api/provider/MapProperty;
+	public abstract fun getExtraFingerprints ()Lorg/gradle/api/provider/SetProperty;
+	public abstract fun getSigningKeyAlias ()Lorg/gradle/api/provider/Property;
+	public abstract fun getSigningStoreFile ()Lorg/gradle/api/file/RegularFileProperty;
+	public abstract fun getSigningStorePassword ()Lorg/gradle/api/provider/Property;
+	public abstract fun getSigningStoreType ()Lorg/gradle/api/provider/Property;
+}
+
+public abstract class io/github/savvasg28/applinks/DeviceAppLinksTask : io/github/savvasg28/applinks/AppLinksTask {
+	public fun <init> ()V
+	public abstract fun getAdbExecutable ()Lorg/gradle/api/provider/Property;
+	public abstract fun getDeviceSerials ()Lorg/gradle/api/provider/SetProperty;
+}
+
+public abstract class io/github/savvasg28/applinks/VerifyAppLinksTask : io/github/savvasg28/applinks/DeviceAppLinksTask {
+	public fun <init> ()V
+	public abstract fun getAssetLinksUrlOverrides ()Lorg/gradle/api/provider/MapProperty;
+	public abstract fun getDebuggable ()Lorg/gradle/api/provider/Property;
+	public abstract fun getTimeoutSeconds ()Lorg/gradle/api/provider/Property;
+	public final fun verify ()V
+}
+

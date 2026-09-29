@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class AppLinksStateParserTest {
-
     private val output = javaClass.getResource("/get-app-links-api35.txt")!!.readText()
 
     @Test
@@ -14,7 +13,7 @@ class AppLinksStateParserTest {
         assertEquals(mapOf("spike.example.com" to "1024", "app.example.com" to "approved"), links.states)
         assertEquals(
             listOf("C3:62:47:DB:64:64:64:8C:82:A2:1D:18:8B:D3:F2:0D:9C:73:F5:86:4B:A8:FF:78:E5:86:A2:D9:F4:36:08:9B"),
-            links.signatures
+            links.signatures,
         )
     }
 

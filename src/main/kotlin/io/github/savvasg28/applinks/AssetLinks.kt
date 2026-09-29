@@ -6,9 +6,13 @@ import java.net.HttpURLConnection
 import java.net.URI
 
 /** One Android statement from an assetlinks.json file. */
-data class AndroidStatement(val packageName: String, val fingerprints: List<String>, val relations: List<String>)
+internal data class AndroidStatement(
+    val packageName: String,
+    val fingerprints: List<String>,
+    val relations: List<String>,
+)
 
-data class AssetLinksResult(
+internal data class AssetLinksResult(
     val url: String,
     val statements: List<AndroidStatement>,
     /** Problems with the transport or the document that make the file unusable for verification. */
@@ -23,7 +27,7 @@ data class AssetLinksResult(
  * Fetches and validates `https://<host>/.well-known/assetlinks.json` the way Android's verifier does:
  * HTTPS, no redirects, `application/json`, a JSON array of statements, optionally following `include`.
  */
-class AssetLinksFetcher(
+internal class AssetLinksFetcher(
     private val urlOverrides: Map<String, String> = emptyMap(),
     private val timeoutMillis: Int = 10_000,
     private val userAgent: String = "applinks-gradle-plugin",
@@ -42,42 +46,49 @@ class AssetLinksFetcher(
         return AssetLinksResult(url, statements, errors, warnings)
     }
 
-    private fun download(url: String, errors: MutableList<String>): String? {
-        val connection = try {
-            (URI(url).toURL().openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = false
-                connectTimeout = timeoutMillis
-                readTimeout = timeoutMillis
-                setRequestProperty("User-Agent", userAgent)
-                setRequestProperty("Accept", "application/json")
+    /**
+     * Returns the body, or null after adding the reason to [errors]. URL parsing, connecting and reading throw
+     * unrelated exception families, and every one of them means "unreachable", hence the generic catch.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun download(
+        url: String,
+        errors: MutableList<String>,
+    ): String? {
+        val body =
+            try {
+                val connection =
+                    (URI(url).toURL().openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = false
+                        connectTimeout = timeoutMillis
+                        readTimeout = timeoutMillis
+                        setRequestProperty("User-Agent", userAgent)
+                        setRequestProperty("Accept", "application/json")
+                    }
+                val status = connection.responseCode
+                val contentType = connection.contentType.orEmpty()
+                when {
+                    status in 300..399 ->
+                        Failure(
+                            "HTTP $status redirect to ${connection.getHeaderField("Location")}. " +
+                                "Android does not follow redirects for assetlinks.json.",
+                        )
+                    status != 200 -> Failure("HTTP $status")
+                    !contentType.startsWith("application/json") ->
+                        Failure("Content-Type is '$contentType', must be application/json")
+                    // Closing the stream (not disconnect()) keeps the socket alive for an `include` on the same origin.
+                    else -> connection.inputStream.bufferedReader().use { it.readText() }
+                }
+            } catch (e: Exception) {
+                Failure("${e.javaClass.simpleName}: ${e.message}")
             }
-        } catch (e: Exception) {
-            errors += "$url: ${e.message}"
-            return null
-        }
-        return try {
-            val status = connection.responseCode
-            if (status in 300..399) {
-                errors += "$url: HTTP $status redirect to ${connection.getHeaderField("Location")}. " +
-                    "Android does not follow redirects for assetlinks.json."
-                return null
-            }
-            if (status != 200) {
-                errors += "$url: HTTP $status"
-                return null
-            }
-            val contentType = connection.contentType.orEmpty()
-            if (!contentType.startsWith("application/json")) {
-                errors += "$url: Content-Type is '$contentType', must be application/json"
-                return null
-            }
-            // Closing the stream (not disconnect()) keeps the socket alive for an `include` on the same origin.
-            connection.inputStream.bufferedReader().use { it.readText() }
-        } catch (e: Exception) {
-            errors += "$url: ${e.javaClass.simpleName}: ${e.message}"
-            null
-        }
+        if (body is Failure) errors += "$url: ${body.reason}"
+        return body as? String
     }
+
+    private class Failure(
+        val reason: String,
+    )
 
     private fun parseStatements(
         body: String,
@@ -87,12 +98,13 @@ class AssetLinksFetcher(
         depth: Int,
     ): List<AndroidStatement> {
         // Gradle bundles Groovy's JSON support, so this adds nothing to consumers' build classpath.
-        val root = try {
-            JsonSlurper().parseText(body)
-        } catch (e: JsonException) {
-            errors += "$url: invalid JSON: ${e.message?.lineSequence()?.firstOrNull()}"
-            return emptyList()
-        }
+        val root =
+            try {
+                JsonSlurper().parseText(body)
+            } catch (e: JsonException) {
+                errors += "$url: invalid JSON: ${e.message?.lineSequence()?.firstOrNull()}"
+                return emptyList()
+            }
         if (root !is List<*>) {
             errors += "$url: top level must be a JSON array of statements"
             return emptyList()

@@ -1,0 +1,18 @@
+# Overrides on top of detekt's default rule set.
+style:
+  MaxLineLength:
+    maxLineLength: 140
+  MagicNumber:
+    # Android API levels and pm state codes are the domain, not magic.
+    active: false
+  ReturnCount:
+    max: 4
+complexity:
+  LongMethod:
+    threshold: 80
+  TooManyFunctions:
+    thresholdInClasses: 15
+naming:
+  FunctionNaming:
+    # JUnit test names in backticks with spaces.
+    ignoreAnnotated: ['Test']

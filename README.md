@@ -86,7 +86,9 @@ The release variant needs a signing config, and that key's fingerprint must be i
 ## Development
 
 ```bash
-./gradlew check
+./gradlew check            # tests, ktlint, detekt, plugin validation, API compatibility
+./gradlew spotlessApply    # fix formatting
+./gradlew apiDump          # after an intended change to the public API
 ```
 
 ## License

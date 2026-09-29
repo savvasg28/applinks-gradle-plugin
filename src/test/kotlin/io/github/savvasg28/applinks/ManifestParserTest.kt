@@ -4,18 +4,19 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-private fun manifest(body: String) = """
+private fun manifest(body: String) =
+    """
     <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.app">
       <application>$body</application>
     </manifest>
-""".trimIndent().toByteArray()
+    """.trimIndent().toByteArray()
 
 class ManifestParserTest {
-
     @Test
     fun `collects hosts from autoVerify https filters only`() {
-        val xml = manifest(
-            """
+        val xml =
+            manifest(
+                """
             <activity android:name=".Main">
               <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
@@ -39,8 +40,8 @@ class ManifestParserTest {
                 <data android:scheme="http" android:host="*.example.com"/>
               </intent-filter>
             </activity>
-            """
-        )
+            """,
+            )
         val hosts = ManifestParser.autoVerifyHosts(ManifestParser.linkFilters(xml))
         assertEquals(setOf("example.com", "app.example.com"), hosts.concrete)
         assertEquals(setOf("*.example.com"), hosts.wildcards)
@@ -48,26 +49,27 @@ class ManifestParserTest {
 
     @Test
     fun `ignores autoVerify filters without a VIEW action`() {
-        val xml = manifest(
-            """
+        val xml =
+            manifest(
+                """
             <activity android:name=".Main">
               <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.SEND"/>
                 <data android:scheme="https" android:host="example.com"/>
               </intent-filter>
             </activity>
-            """
-        )
+            """,
+            )
         assertTrue(ManifestParser.autoVerifyHosts(ManifestParser.linkFilters(xml)).isEmpty)
     }
 }
 
 class LinkFilterTest {
-
     @Test
     fun `reports what stops verification and keeps unverified filters separate`() {
-        val xml = manifest(
-            """
+        val xml =
+            manifest(
+                """
             <activity android:name=".Main">
               <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
@@ -81,8 +83,8 @@ class LinkFilterTest {
                 <data android:scheme="https" android:host="link.tink.com"/>
               </intent-filter>
             </activity>
-            """
-        )
+            """,
+            )
         val filters = ManifestParser.linkFilters(xml)
         assertEquals(2, filters.size)
         val verified = filters.first { it.isVerifiable }
