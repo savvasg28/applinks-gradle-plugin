@@ -106,6 +106,21 @@ class ApproveAppLinksFunctionalTest {
     }
 
     @Test
+    fun `an app that is not installed yet gets a watcher on the device and a warning, not a failure`() {
+        val fresh = project.fakeAdb("fake-adb-fresh", devices = mapOf("emulator-5554" to 35), getAppLinks = ":", installed = false)
+        project.appendBuild("appLinks { adbExecutable = '${fresh.absolutePath}' }")
+
+        val result = project.run("assembleDebug").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":autoApproveAppLinksDebug")?.outcome)
+        val watcher = project.adbLog.readLines().single { "nohup sh -c" in it }
+        assertTrue("pm set-app-links --package uk.co.sample.debug 2 sample.uk app.sample.uk" in watcher, watcher)
+        assertTrue("pkill -f" in watcher && "</dev/null >/dev/null 2>&1 &" in watcher, watcher)
+        assertTrue(result.output.contains("a watcher on the device will approve sample.uk, app.sample.uk"), result.output)
+        assertTrue(result.output.contains("passed with 1 warning(s)"), result.output)
+    }
+
+    @Test
     fun `a wrong explicit adb path fails instead of falling back`() {
         project.appendBuild("appLinks { adbExecutable = '/definitely/missing/adb' }")
 

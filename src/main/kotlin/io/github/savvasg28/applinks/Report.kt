@@ -51,7 +51,8 @@ internal class Report(
         warnings.forEach { logger.warn("warning: $it") }
         write(file)
         if (passed) {
-            logger.lifecycle("$subject passed for $applicationId. Report: $file")
+            val caveat = if (warnings.isEmpty()) "" else " with ${warnings.size} warning(s)"
+            logger.lifecycle("$subject passed$caveat for $applicationId. Report: $file")
             return
         }
         val summary = "$subject failed:\n  " + errors.joinToString("\n  ") + "\nReport: $file"

@@ -127,6 +127,7 @@ class SampleProject(
         name: String,
         devices: Map<String, Int>,
         getAppLinks: String,
+        installed: Boolean = true,
     ): File {
         val deviceList = devices.keys.joinToString("") { "$it\\tdevice\\n" }
         val apiCases = devices.entries.joinToString(" ") { (serial, api) -> "*$serial*) echo $api ;;" }
@@ -139,7 +140,8 @@ class SampleProject(
             case "${'$'}all" in
               devices) printf 'List of devices attached\n${deviceList}offline-1\toffline\n\n' ;;
               *"getprop ro.build.version.sdk"*) case "${'$'}all" in $apiCases esac ;;
-              *"pm set-app-links"*|*"pm verify-app-links"*) : ;;
+              *"nohup sh -c"*) : ;;
+              *"pm set-app-links"*|*"pm verify-app-links"*) ${if (installed) ":" else "echo 'Package not found: '; exit 1"} ;;
               *"pm get-app-links"*) pkg="${'$'}{all##* }"; $getAppLinks ;;
               *) echo "unexpected adb call: ${'$'}all" >&2; exit 1 ;;
             esac

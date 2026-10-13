@@ -16,7 +16,13 @@ The build already knows the applicationId, the hosts in the merged manifest and 
 
 Three tasks per variant.
 
-`autoApproveAppLinks<Variant>` runs after every `assemble` and `install` of a debuggable variant and force-approves the app's hosts on each connected device with [`pm set-app-links`](https://developer.android.com/training/app-links/verify-android-applinks#manual-verification). The approval survives the in-place reinstalls Android Studio does, so it effectively runs once per device. It never fails a build and never touches non-debuggable variants unless you opt them in.
+`autoApproveAppLinks<Variant>` runs after every `assemble` and `install` of a debuggable variant and tells each connected device to treat the app's hosts as verified:
+
+```
+pm set-app-links --package <applicationId> 2 <host> [<host>...]
+```
+
+State 2 is `STATE_APPROVED` and the verifier cannot overwrite it. It survives the in-place reinstalls Android Studio does and is lost only on uninstall or a wiped device. Studio installs the APK after Gradle has finished, so on a fresh device the task leaves a small watcher running on the device that approves the hosts the moment the package appears, then exits. The task never fails a build and never touches non-debuggable variants unless you opt them in.
 
 `checkAppLinks<Variant>` is the PR gate. No device, about a second. It computes the fingerprint from the variant's signing config, fetches each host's assetlinks.json under [Android's rules](https://developer.android.com/training/app-links/configure-assetlinks), and fails if the file is missing, malformed, names another package or does not list the key. Manifest filters Android would never verify fail too.
 

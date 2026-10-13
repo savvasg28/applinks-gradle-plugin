@@ -84,7 +84,12 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
         }
         val links = if (device.setAppLinks(packageName, 2, hosts.pmDomainsArgument)) device.appLinks(packageName) else null
         if (links == null) {
-            report.note("${device.serial}: $packageName is not installed yet, nothing approved.")
+            // Android Studio installs after Gradle has exited, so leave a watcher on the device to finish the job.
+            device.approveWhenInstalled(packageName, hosts.pmDomainsArgument)
+            report.warning(
+                "${device.serial}: $packageName is not installed yet; a watcher on the device will approve " +
+                    "${hosts.all.joinToString()} as soon as it is, for up to ${AppLinksDevice.WATCHER_TIMEOUT_SECONDS}s.",
+            )
             return
         }
         logger.lifecycle("${device.serial} (API ${device.apiLevel}), $packageName:")

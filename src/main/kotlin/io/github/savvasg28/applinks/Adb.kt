@@ -90,10 +90,49 @@ internal class AppLinksDevice(
         adb.shell(serial, "pm verify-app-links --re-verify $packageName")
     }
 
+    /**
+     * Leaves a shell loop running on the device that approves [domainsArgument] for [packageName] as soon as
+     * the package is installed, then exits. Needed because Android Studio installs the APK after Gradle has
+     * finished, so a finalizer of `assemble` runs too early on a fresh device. Any watcher already waiting for
+     * the same package is killed first, so repeated builds do not stack loops.
+     */
+    fun approveWhenInstalled(
+        packageName: String,
+        domainsArgument: String,
+        timeoutSeconds: Int = WATCHER_TIMEOUT_SECONDS,
+    ) {
+        adb.shell(serial, watcherCommand(packageName, domainsArgument, timeoutSeconds))
+    }
+
     /** Null when the package is not installed. */
     fun appLinks(packageName: String): PackageAppLinks? {
         val output = adb.shell(serial, "pm get-app-links --user cur $packageName")
         return AppLinksStateParser.parse(output, packageName)
+    }
+
+    companion object {
+        const val WATCHER_TIMEOUT_SECONDS = 120
+        private val SAFE_PACKAGE = Regex("[A-Za-z0-9._]+")
+
+        /**
+         * The marker `applinks-watch:<package>` becomes `$0` of the loop's shell, so `pkill -f` can find an
+         * earlier watcher. It is assembled from a variable so the pattern never matches the launching shell's
+         * own command line, which would kill the launcher before it starts the loop.
+         */
+        fun watcherCommand(
+            packageName: String,
+            domainsArgument: String,
+            timeoutSeconds: Int,
+        ): String {
+            require(SAFE_PACKAGE.matches(packageName)) { "Refusing package name '$packageName'" }
+            val loop =
+                "i=0; while [ \$i -lt $timeoutSeconds ]; do " +
+                    "if pm path $packageName >/dev/null 2>&1; then sleep 2; " +
+                    "pm set-app-links --package $packageName 2 $domainsArgument; exit 0; fi; " +
+                    "i=\$((i+1)); sleep 1; done"
+            return "P=$packageName; pkill -f \"applinks-watch:\$P\" 2>/dev/null; " +
+                "nohup sh -c '$loop' \"applinks-watch:\$P\" </dev/null >/dev/null 2>&1 &"
+        }
     }
 
     private fun installedOnly(block: () -> Unit): Boolean =

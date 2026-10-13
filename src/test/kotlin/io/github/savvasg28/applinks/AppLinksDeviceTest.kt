@@ -70,6 +70,26 @@ class AppLinksDeviceTest {
     }
 
     @Test
+    fun `watcher command waits for the package, approves once, and cannot kill its own launcher`() {
+        val command = AppLinksDevice.watcherCommand("com.example.app", "a.example.com b.example.com", 120)
+        assertTrue(command.startsWith("P=com.example.app; pkill -f \"applinks-watch:\$P\" 2>/dev/null; nohup sh -c '"), command)
+        assertTrue("while [ \$i -lt 120 ]" in command, command)
+        assertTrue("pm path com.example.app >/dev/null 2>&1" in command, command)
+        assertTrue("pm set-app-links --package com.example.app 2 a.example.com b.example.com; exit 0" in command, command)
+        assertTrue(command.endsWith("' \"applinks-watch:\$P\" </dev/null >/dev/null 2>&1 &"), command)
+        // The expanded marker must not appear literally, or pkill would match the shell that runs this command.
+        assertFalse("applinks-watch:com.example.app" in command, command)
+        assertThrows(IllegalArgumentException::class.java) { AppLinksDevice.watcherCommand("x; rm -rf /", "h", 1) }
+    }
+
+    @Test
+    fun `not installed starts the watcher through adb`() {
+        val adb = FakeAdb("35", installed = false)
+        AppLinksDevice(adb, "emulator-5554").approveWhenInstalled("x", "h")
+        assertTrue(adb.commands.last().contains("nohup sh -c"), adb.commands.toString())
+    }
+
+    @Test
     fun `process adb refuses a non-executable path up front`() {
         val error = assertThrows(AdbException::class.java) { ProcessAdb(File("/definitely/missing/adb").path) }
         assertTrue(error.message!!.contains("/definitely/missing/adb"))
