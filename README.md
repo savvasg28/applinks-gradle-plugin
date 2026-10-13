@@ -22,7 +22,7 @@ Three tasks per variant.
 pm set-app-links --package <applicationId> 2 <host> [<host>...]
 ```
 
-State 2 is `STATE_APPROVED` and the verifier cannot overwrite it. It survives the in-place reinstalls Android Studio does and is lost only on uninstall or a wiped device. Studio installs the APK after Gradle has finished, so on a fresh device the task leaves a small watcher running on the device that approves the hosts the moment the package appears, then exits. The task never fails a build and never touches non-debuggable variants unless you opt them in.
+State 2 is `STATE_APPROVED` and the verifier cannot overwrite it. It survives the in-place reinstalls Android Studio does and is lost only on uninstall or a wiped device. Studio installs the APK after Gradle has finished, so on a fresh device the task leaves a small watcher running on the device that approves the hosts the moment the package appears, then exits. It gives up after two minutes. The task never fails a build and never touches non-debuggable variants unless you opt them in.
 
 `checkAppLinks<Variant>` is the PR gate. No device, about a second. It computes the fingerprint from the variant's signing config, fetches each host's assetlinks.json under [Android's rules](https://developer.android.com/training/app-links/configure-assetlinks), and fails if the file is missing, malformed, names another package or does not list the key. Manifest filters Android would never verify fail too.
 
@@ -35,7 +35,7 @@ Filters without `android:autoVerify="true"` are reported as unverified by design
 ```kotlin
 plugins {
     id("com.android.application")
-    id("io.github.savvasg28.applinks") version "0.1.0"
+    id("io.github.savvasg28.applinks") version "0.1.3"
 }
 ```
 
@@ -65,7 +65,7 @@ appLinks {
 }
 ```
 
-`checkAppLinks` always expects the certificate of the variant's signing config. With Play App Signing users' devices see Google's key instead, so add its fingerprint from Play Console under App integrity.
+`checkAppLinks` always expects the certificate the variant is signed with, resolved as AGP does: `android.injected.signing.*` properties, then the build type, the first flavor, then `defaultConfig`. With Play App Signing users' devices see Google's key instead, so add its fingerprint from Play Console under App integrity.
 
 ## Verify in CI
 

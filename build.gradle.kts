@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "io.github.savvasg28"
-version = "0.1.2"
+version = "0.1.3"
 
 kotlin {
     jvmToolchain(17)
