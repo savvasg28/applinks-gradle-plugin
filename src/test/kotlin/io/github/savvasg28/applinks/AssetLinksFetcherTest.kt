@@ -91,6 +91,14 @@ class AssetLinksFetcherTest {
     }
 
     @Test
+    fun `a wildcard host is fetched from its base domain`() {
+        serve("/base", 200, "application/json", "[]")
+        val result = fetcher("example.com" to "$base/base").fetch("*.example.com")
+        assertEquals("$base/base", result.url)
+        assertEquals(emptyList<String>(), result.errors)
+    }
+
+    @Test
     fun `unreachable host is an error not an exception`() {
         val result = fetcher("h" to "http://localhost:1/nothing").fetch("h")
         assertEquals(1, result.errors.size)

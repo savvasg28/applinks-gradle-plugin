@@ -38,7 +38,8 @@ internal class AssetLinksFetcher(
     }
 
     fun fetch(host: String): AssetLinksResult {
-        val url = urlOverrides[host] ?: "https://$host$WELL_KNOWN"
+        val domain = AutoVerifyHosts.baseDomain(host)
+        val url = urlOverrides[host] ?: urlOverrides[domain] ?: "https://$domain$WELL_KNOWN"
         val errors = mutableListOf<String>()
         val warnings = mutableListOf<String>()
         val body = download(url, errors) ?: return AssetLinksResult(url, emptyList(), errors, warnings)

@@ -1,11 +1,11 @@
 package io.github.savvasg28.applinks
 
 import com.android.build.api.artifact.SingleArtifact
-import com.android.build.api.dsl.ApkSigningConfig
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ApplicationVariant
 import org.gradle.api.Project
+import java.io.File
 
 /** The only class that touches AGP types. See [AppLinksPlugin] for why. */
 internal object AndroidTaskRegistrar {
@@ -80,7 +80,7 @@ internal object AndroidTaskRegistrar {
             ) { task ->
                 task.extraFingerprints.set(extension.additionalCertificateFingerprints)
                 task.assetLinksUrlOverrides.set(extension.assetLinksUrlOverrides)
-                signingConfigFor(android, variant)?.let { signing ->
+                signingFor(project, android, variant)?.let { signing ->
                     signing.storeFile?.let { task.signingStoreFile.set(it) }
                     signing.storePassword?.let { task.signingStorePassword.set(it) }
                     signing.keyAlias?.let { task.signingKeyAlias.set(it) }
@@ -100,16 +100,34 @@ internal object AndroidTaskRegistrar {
         }
     }
 
-    /** Build type wins, then the first flavor that sets one, mirroring AGP. */
-    private fun signingConfigFor(
+    /** What the build really signs with; the variant API does not expose store details, so this mirrors AGP's rules. */
+    private class Signing(
+        val storeFile: File?,
+        val storePassword: String?,
+        val keyAlias: String?,
+        val storeType: String?,
+    )
+
+    /**
+     * Precedence as AGP applies it: `android.injected.signing.*` properties (Android Studio's "Generate Signed
+     * APK" and many CI setups), then the build type, then the first flavor that sets one, then `defaultConfig`.
+     */
+    private fun signingFor(
+        project: Project,
         android: ApplicationExtension,
         variant: ApplicationVariant,
-    ): ApkSigningConfig? {
-        val fromBuildType = variant.buildType?.let { android.buildTypes.findByName(it)?.signingConfig }
-        if (fromBuildType != null) return fromBuildType
-        return variant.productFlavors
-            .asSequence()
-            .mapNotNull { (_, flavor) -> android.productFlavors.findByName(flavor)?.signingConfig }
-            .firstOrNull()
+    ): Signing? {
+        fun injected(name: String) = project.providers.gradleProperty("android.injected.signing.$name").orNull
+        injected("store.file")?.let { store ->
+            return Signing(project.file(store), injected("store.password"), injected("key.alias"), null)
+        }
+        val dsl =
+            variant.buildType?.let { android.buildTypes.findByName(it)?.signingConfig }
+                ?: variant.productFlavors
+                    .asSequence()
+                    .mapNotNull { (_, flavor) -> android.productFlavors.findByName(flavor)?.signingConfig }
+                    .firstOrNull()
+                ?: android.defaultConfig.signingConfig
+        return dsl?.let { Signing(it.storeFile, it.storePassword, it.keyAlias, it.storeType) }
     }
 }

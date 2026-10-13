@@ -52,6 +52,12 @@ class CheckAndVerifyFunctionalTest {
                   <category android:name="android.intent.category.BROWSABLE"/>
                   <data android:scheme="https" android:host="link.payment-provider.com"/>
                 </intent-filter>
+                <intent-filter android:autoVerify="true">
+                  <action android:name="android.intent.action.VIEW"/>
+                  <category android:name="android.intent.category.DEFAULT"/>
+                  <category android:name="android.intent.category.BROWSABLE"/>
+                  <data android:scheme="https" android:host="*.sample.uk"/>
+                </intent-filter>
                 """.trimIndent(),
         )
     }
@@ -83,7 +89,9 @@ class CheckAndVerifyFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":checkAppLinksStaging")?.outcome)
         assertTrue(result.output.contains("unverified web link for link.payment-provider.com"), result.output)
-        assertTrue(project.report("checkAppLinksStaging").contains("\"passed\": true"))
+        assertTrue(result.output.contains("*.sample.uk: checking sample.uk"), result.output)
+        val report = project.report("checkAppLinksStaging")
+        assertTrue(report.contains("\"passed\": true") && report.contains("\"*.sample.uk\""), report)
     }
 
     @Test
@@ -116,6 +124,57 @@ class CheckAndVerifyFunctionalTest {
     }
 
     @Test
+    fun `check falls back to the signing config declared in defaultConfig`() {
+        project.write(
+            appLinks =
+                """
+                assetLinksUrlOverrides.put('sample.uk', '$base/sample.uk')
+                assetLinksUrlOverrides.put('app.sample.uk', '$base/app.sample.uk')
+                excludedHosts.add('excluded.sample.uk')
+                """.trimIndent(),
+            extraAndroid = "defaultConfig { signingConfig signingConfigs.test }",
+        )
+        serveAssetLinks("sample.uk", project.fingerprint)
+        serveAssetLinks("app.sample.uk", project.fingerprint)
+
+        // release declares no signingConfig of its own, so only defaultConfig can explain a pass here
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            project
+                .run("checkAppLinksRelease")
+                .build()
+                .task(":checkAppLinksRelease")
+                ?.outcome,
+        )
+    }
+
+    @Test
+    fun `check honours injected signing properties over the build type's config`() {
+        serveAssetLinks("sample.uk", project.otherFingerprint)
+        serveAssetLinks("app.sample.uk", project.otherFingerprint)
+
+        // staging is signed with the test key in the DSL; the injected properties say the build signs with the other key
+        val result =
+            project
+                .run(
+                    "checkAppLinksStaging",
+                    "-Pandroid.injected.signing.store.file=${project.otherKeystore.absolutePath}",
+                    "-Pandroid.injected.signing.store.password=otherpw",
+                    "-Pandroid.injected.signing.key.alias=other",
+                    "-Pandroid.injected.signing.key.password=otherpw",
+                ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":checkAppLinksStaging")?.outcome)
+        assertTrue(
+            project
+                .run("checkAppLinksStaging")
+                .buildAndFail()
+                .output
+                .contains("does not list ${project.fingerprint}"),
+        )
+    }
+
+    @Test
     fun `verify waits for the verifier and explains failures using the installed certificate`() {
         serveAssetLinks("sample.uk", project.fingerprint)
         serveAssetLinks("app.sample.uk", other)
@@ -132,14 +191,22 @@ class CheckAndVerifyFunctionalTest {
                     "sample.uk" to "none",
                     "app.sample.uk" to "none",
                 )}
-                else ${SampleProject.appLinksOutput(project.fingerprint, "sample.uk" to "verified", "app.sample.uk" to "1024")}; fi""",
+                else ${SampleProject.appLinksOutput(
+                    project.fingerprint,
+                    "sample.uk" to "verified",
+                    "app.sample.uk" to "1024",
+                    "*.sample.uk" to "none",
+                )}; fi""",
             )
         project.appendBuild("appLinks { adbExecutable = '${fakeAdb.absolutePath}'; verifyTimeoutSeconds = 2 }")
 
         val result = project.run("verifyAppLinksStaging").buildAndFail()
 
         val commands = project.adbLog.readLines()
-        assertTrue(commands.any { "pm set-app-links --package uk.co.sample 0 sample.uk app.sample.uk" in it }, commands.toString())
+        assertTrue(
+            commands.any { "pm set-app-links --package uk.co.sample 0 sample.uk app.sample.uk *.sample.uk" in it },
+            commands.toString(),
+        )
         assertTrue(commands.any { "pm verify-app-links --re-verify uk.co.sample" in it }, commands.toString())
         assertTrue(commands.count { "pm get-app-links" in it } >= 2, "must poll more than once")
         assertTrue(result.output.contains("sample.uk") && result.output.contains("verified"), result.output)
@@ -147,6 +214,7 @@ class CheckAndVerifyFunctionalTest {
             result.output.contains("app.sample.uk is '1024': installed cert ${project.fingerprint} is not in assetlinks.json"),
             result.output,
         )
+        assertTrue(result.output.contains("*.sample.uk is 'none'"), result.output)
         assertTrue(project.report("verifyAppLinksStaging").contains("\"passed\": false"))
     }
 

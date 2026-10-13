@@ -59,13 +59,13 @@ abstract class VerifyAppLinksTask : DeviceAppLinksTask() {
                     }
                 }
             }
-        val results = awaitVerification(pending, packageName, hosts.concrete)
+        val results = awaitVerification(pending, packageName, hosts.all)
 
         val server = ServerFingerprints(fetcherFactory(assetLinksUrlOverrides.get()), packageName)
         for (device in pending) {
             val links = results[device.serial] ?: PackageAppLinks(emptyMap(), emptyList())
             logger.lifecycle("${device.serial} (API ${device.apiLevel}), $packageName, installed cert ${links.signatures.joinToString()}:")
-            for (host in hosts.concrete) {
+            for (host in hosts.all) {
                 val state = links.states[host] ?: "missing"
                 val explanation =
                     if (state == "verified") {

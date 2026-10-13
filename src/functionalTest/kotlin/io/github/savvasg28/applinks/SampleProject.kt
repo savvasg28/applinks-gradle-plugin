@@ -40,10 +40,38 @@ class SampleProject(
         Fingerprints.fromKeystore(keystore, "secret", "test", "PKCS12")
     }
 
+    /** A second key, standing in for the Play App Signing key or an injected CI keystore. */
+    val otherKeystore = File(dir, "other.jks")
+    val otherFingerprint: String by lazy {
+        keytool(
+            "-genkeypair",
+            "-keystore",
+            otherKeystore.path,
+            "-storepass",
+            "otherpw",
+            "-keypass",
+            "otherpw",
+            "-alias",
+            "other",
+            "-keyalg",
+            "RSA",
+            "-keysize",
+            "2048",
+            "-dname",
+            "CN=other",
+            "-validity",
+            "1",
+            "-storetype",
+            "PKCS12",
+        )
+        Fingerprints.fromKeystore(otherKeystore, "otherpw", "other", "PKCS12")
+    }
+
     fun write(
         appLinks: String = "",
         extraBuildTypes: String = "",
         extraFilters: String = "",
+        extraAndroid: String = "",
     ) {
         fingerprint // make sure the keystore exists before the build file references it
         adbLog.delete()
@@ -79,6 +107,7 @@ class SampleProject(
                         storePassword 'secret'; keyAlias 'test'; keyPassword 'secret'; storeType 'PKCS12'
                     }
                 }
+                $extraAndroid
                 buildTypes {
                     debug { applicationIdSuffix '.debug' }
                     // Non-debuggable but signed with a known key, so tests know the expected fingerprint.

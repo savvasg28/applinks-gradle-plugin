@@ -6,14 +6,16 @@ import org.junit.jupiter.api.Test
 
 class AutoVerifyHostsTest {
     @Test
-    fun `concrete hosts become the pm argument, a wildcard forces all`() {
+    fun `every host, wildcard included, goes into the pm argument literally`() {
         val hosts = AutoVerifyHosts.of(listOf("example.com", "app.example.com", "example.com"))
         assertEquals(setOf("example.com", "app.example.com"), hosts.concrete)
         assertEquals("example.com app.example.com", hosts.pmDomainsArgument)
 
         val wild = AutoVerifyHosts.of(listOf("example.com", "*.example.com"))
-        assertTrue(wild.hasWildcard)
-        assertEquals("all", wild.pmDomainsArgument)
+        assertEquals(setOf("*.example.com"), wild.wildcards)
+        assertEquals("example.com *.example.com", wild.pmDomainsArgument)
+        assertEquals("example.com", AutoVerifyHosts.baseDomain("*.example.com"))
+        assertEquals("app.example.com", AutoVerifyHosts.baseDomain("app.example.com"))
     }
 
     @Test

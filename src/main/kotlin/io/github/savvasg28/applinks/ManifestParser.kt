@@ -28,24 +28,27 @@ internal data class LinkFilter(
 }
 
 /**
- * The hosts Android will try to verify for a package. `pm set-app-links` takes literal hosts, so a
- * wildcard such as `*.example.com` forces the `all` argument, which also covers hosts meant to be excluded.
+ * The hosts Android will try to verify for a package. `pm get-app-links` lists a wildcard such as
+ * `*.example.com` literally and `pm set-app-links` accepts it, so wildcards are ordinary hosts to the
+ * device. Only the server check treats them differently, because the verifier fetches the base domain.
  */
 internal data class AutoVerifyHosts(
     val concrete: Set<String>,
     val wildcards: Set<String>,
 ) {
     val isEmpty: Boolean get() = concrete.isEmpty() && wildcards.isEmpty()
-    val hasWildcard: Boolean get() = wildcards.isNotEmpty()
     val all: Set<String> get() = concrete + wildcards
 
     /** The `<DOMAINS>` argument for `pm set-app-links`. */
-    val pmDomainsArgument: String get() = if (hasWildcard) "all" else concrete.joinToString(" ")
+    val pmDomainsArgument: String get() = all.joinToString(" ")
 
     operator fun minus(excluded: Set<String>): AutoVerifyHosts = AutoVerifyHosts(concrete - excluded, wildcards - excluded)
 
     companion object {
         private val SAFE_HOST = Regex("[A-Za-z0-9.*-]+")
+
+        /** `*.example.com` is verified against `https://example.com/.well-known/assetlinks.json` (AOSP verifier behaviour). */
+        fun baseDomain(host: String): String = host.removePrefix("*.")
 
         /** Hosts end up inside an `adb shell` command line, so anything outside a hostname alphabet is refused. */
         fun of(hosts: Iterable<String>): AutoVerifyHosts {

@@ -49,9 +49,6 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
             report.note("No autoVerify hosts to approve.")
             return finish(report)
         }
-        if (hosts.hasWildcard && excludedHosts.get().isNotEmpty()) {
-            report.warning("wildcard host present, approving 'all'; excludedHosts cannot be honoured for this run")
-        }
 
         val devices =
             try {
@@ -93,11 +90,11 @@ abstract class ApproveAppLinksTask : DeviceAppLinksTask() {
             return
         }
         logger.lifecycle("${device.serial} (API ${device.apiLevel}), $packageName:")
-        for (host in hosts.concrete + (links.states.keys - hosts.concrete)) {
+        for (host in hosts.all + (links.states.keys - hosts.all)) {
             val state = links.states[host] ?: "missing"
             logHost(host, state, AppLinksStateParser.describe(state))
             report.host("${device.serial}/$host", "device" to device.serial, "host" to host, "state" to state)
-            if (host in hosts.concrete && state != "approved") {
+            if (host in hosts.all && state != "approved") {
                 report.error("${device.serial}: $host is '$state', expected 'approved'")
             }
         }

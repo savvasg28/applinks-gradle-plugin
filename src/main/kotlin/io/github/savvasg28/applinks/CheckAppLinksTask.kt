@@ -58,11 +58,10 @@ abstract class CheckAppLinksTask : AppLinksTask() {
         val hosts = ManifestParser.autoVerifyHosts(verifiable) - excludedHosts.get()
         if (hosts.isEmpty) report.note("No autoVerify hosts to check.")
         hosts.wildcards.forEach {
-            report.host(it, "status" to "skipped")
-            report.warning("$it: wildcard hosts are verified per concrete host; check each one explicitly")
+            report.warning("$it: checking ${AutoVerifyHosts.baseDomain(it)}, where the verifier looks for a wildcard host")
         }
 
-        for ((host, result) in fetchAll(hosts.concrete)) {
+        for ((host, result) in fetchAll(hosts.all)) {
             result.errors.forEach(report::error)
             result.warnings.forEach(report::warning)
             if (result.errors.isNotEmpty()) {

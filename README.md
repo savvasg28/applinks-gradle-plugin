@@ -86,7 +86,7 @@ The release variant needs a signing config, and that key's fingerprint must be i
 
 - Gradle 8.0+ and Android Gradle Plugin 8.0+. Built against AGP 8.7.3, tested on Gradle 8.13.
 - Devices below API 31 are skipped.
-- A wildcard host makes approve pass `all`, so excluded hosts cannot be honoured on that run.
+- A wildcard host such as `*.example.com` is approved and verified like any other host. `checkAppLinks` fetches assetlinks.json from the base domain for it, which is where Android's verifier looks.
 - Undo on a device: `adb shell pm set-app-links --package <id> 0 all`, then `adb shell pm verify-app-links --re-verify <id>`.
 
 ## Development
