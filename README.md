@@ -1,36 +1,59 @@
 # App Links Gradle plugin
 
-Makes [Android App Links](https://developer.android.com/training/app-links) testable on debug builds, and catches App Link regressions before they reach users.
+This document explains how to install, configure, and run the App Links Gradle plugin. The plugin makes [Android App Links](https://developer.android.com/training/app-links) work on debug builds and catches App Link regressions before users do.
 
-## The problem
+**Audience:** Android developers who maintain an app that handles App Links and who build the app with Gradle.
 
-Since Android 12 an `https://` link only opens your app once the device has [verified the domain](https://developer.android.com/training/app-links/verify-android-applinks) against the signing certificate listed in the site's [assetlinks.json](https://developer.android.com/training/app-links/configure-assetlinks). That breaks two things.
+**Prerequisites:** You know what App Links are and how [Android verifies them](https://developer.android.com/training/app-links/verify-android-applinks) against the [assetlinks.json](https://developer.android.com/training/app-links/configure-assetlinks) file on your website.
 
-**Testing.** Debug builds are signed with each developer's own key, so verification fails and every App Link opens in the browser on the build you are working on.
+**Not covered:** How to add App Link intent filters to your manifest or how to host assetlinks.json. The Android documentation linked above covers both.
 
-**Regressions.** The server file can be [misconfigured](https://developer.android.com/training/app-links/troubleshoot) in a dozen ways, or list the upload key when [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) signs with another. The app build does not notice. Users do.
+## Why you need this plugin
 
-The build already knows the applicationId, the hosts in the merged manifest and the signing key. This plugin uses that.
+Since Android 12, an `https://` link opens your app only after the device has verified the domain. The device fetches `https://<host>/.well-known/assetlinks.json` and looks for the SHA-256 fingerprint of the certificate that signed the installed APK. When the fingerprint is missing, the link opens in the browser instead. This rule causes the following two problems:
 
-## What it does
+- **Debug builds never pass verification.** Each developer signs debug builds with a local debug key, and assetlinks.json does not list those keys. Every App Link opens in the browser on the build you are working on.
+- **Server regressions go unnoticed.** Someone can [misconfigure](https://developer.android.com/training/app-links/troubleshoot) assetlinks.json, or list the upload key while [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) signs with a different key. The app build does not notice. Users notice.
 
-Three tasks per variant.
+The Gradle build already knows the applicationId, the hosts in the merged manifest, and the signing key. The plugin uses that information to solve both problems.
 
-`autoApproveAppLinks<Variant>` runs after every `assemble` and `install` of a debuggable variant and tells each connected device to treat the app's hosts as verified:
+## How the plugin works
+
+The plugin adds the following three tasks to every variant of an application module:
+
+| Task | Needs | Runs | Fails when |
+|---|---|---|---|
+| `autoApproveAppLinks<Variant>` | A connected device | Automatically after `assemble` and `install` of debuggable variants | Never. Problems become warnings. |
+| `checkAppLinks<Variant>` | Network access | When you run it, typically on every pull request | assetlinks.json is missing, malformed, names another package, or does not list the signing key |
+| `verifyAppLinks<Variant>` | An installed build on a device with network access | When you run it, typically nightly and before a release | The device's verifier does not report `verified` for every host |
+
+The plugin reads hosts only from intent filters that declare `android:autoVerify="true"`. The plugin reports other web filters, such as a payment provider's redirect host that you do not own, as unverified by design and never fails on them.
+
+### Approve App Links on debug builds
+
+`autoApproveAppLinks<Variant>` tells each connected device to treat the app's hosts as verified. The task runs the following command for the variant's applicationId and hosts:
 
 ```
 pm set-app-links --package <applicationId> 2 <host> [<host>...]
 ```
 
-State 2 is `STATE_APPROVED` and the verifier cannot overwrite it. It survives the in-place reinstalls Android Studio does and is lost only on uninstall or a wiped device. Studio installs the APK after Gradle has finished, so on a fresh device the task leaves a small watcher running on the device that approves the hosts the moment the package appears, then exits. It gives up after two minutes. The task never fails a build and never touches non-debuggable variants unless you opt them in.
+State 2 means `STATE_APPROVED`, and the device's verifier cannot overwrite that state. The approval survives the in-place reinstalls that Android Studio performs. The approval is lost only when you uninstall the app or wipe the device.
 
-`checkAppLinks<Variant>` is the PR gate. No device, about a second. It computes the fingerprint from the variant's signing config, fetches each host's assetlinks.json under [Android's rules](https://developer.android.com/training/app-links/configure-assetlinks), and fails if the file is missing, malformed, names another package or does not list the key. Manifest filters Android would never verify fail too.
+Android Studio installs the APK after Gradle has finished. On a fresh device the task therefore leaves a small watcher running on the device. The watcher approves the hosts as soon as the package appears, then exits. The watcher gives up after two minutes.
 
-`verifyAppLinks<Variant>` is the ground truth for nightly and release pipelines. It makes the device's own verifier run again and fails unless every host is `verified`. On failure it reads the installed certificate from the device and says whether the server or the key is wrong.
+The task never fails a build. The task never touches a non-debuggable variant unless you list that variant in `allowedVariants`.
 
-Filters without `android:autoVerify="true"` are reported as unverified by design and never fail anything.
+### Check assetlinks.json without a device
 
-## Usage
+`checkAppLinks<Variant>` validates both sides of App Link verification in about a second. The task computes the expected fingerprint from the variant's signing config and fetches each host's assetlinks.json the way Android does: over HTTPS, without following redirects, and requiring the `application/json` content type. The task fails when a file is missing, malformed, names another package, or does not list the key. The task also fails on manifest filters that Android would never verify, such as an autoVerify filter without the `BROWSABLE` category.
+
+### Verify App Links on a device
+
+`verifyAppLinks<Variant>` asks the device's own verifier for the ground truth. The task resets the cached result for the app's hosts, requests a new verification, waits for the result, and fails unless every host is `verified`. When a host fails, the task reads the installed certificate from the device and reports whether the server or the key is wrong.
+
+## Install the plugin
+
+Add the plugin to the application module's build script:
 
 ```kotlin
 plugins {
@@ -39,35 +62,47 @@ plugins {
 }
 ```
 
-Debug builds need nothing else. The other two run by hand or in CI:
+Debug builds need no further configuration. The next time you run the app from Android Studio, the build prints output like the following:
+
+```
+> Task :app:autoApproveAppLinksDebug
+emulator-5554 (API 35), com.example.app.debug:
+  example.com                      approved     force-approved via adb, opens in app
+  app.example.com                  approved     force-approved via adb, opens in app
+App Links approval passed for com.example.app.debug. Report: app/build/reports/app-links/autoApproveAppLinksDebug.json
+```
+
+To run the other two tasks, use the following commands:
 
 ```bash
 ./gradlew checkAppLinksRelease
 ./gradlew installRelease verifyAppLinksRelease
 ```
 
-Every task writes `build/reports/app-links/<task name>.json`.
+Every task writes a JSON report to `build/reports/app-links/<task name>.json`.
 
-## Configuration
+## Configure the plugin
 
-All optional.
+All settings are optional. The following example shows every setting with its default or a typical value:
 
 ```kotlin
 appLinks {
-    autoApproveDebuggableVariants = true        // the default
-    allowedVariants.add("staging")              // non-debuggable variants approveAppLinks may touch
-    excludedHosts.add("prod.example.com")       // hosts every task leaves alone
-    additionalCertificateFingerprints.add("AB:CD:...")   // certificates assetlinks.json must list besides the variant's own
+    autoApproveDebuggableVariants = true   // Default. Set to false to run approveAppLinks<Variant> by hand only.
+    allowedVariants.add("staging")         // Non-debuggable variants that approveAppLinks<Variant> may touch.
+    excludedHosts.add("prod.example.com")  // Hosts that every task leaves alone.
+    additionalCertificateFingerprints.add("AB:CD:...")  // Certificates that assetlinks.json must list besides the variant's own.
     assetLinksUrlOverrides.put("example.com", "https://staging.example.com/.well-known/assetlinks.json")
-    deviceSerials.add("emulator-5554")          // default: every connected device
-    verifyTimeoutSeconds = 30
-    adbExecutable.set("/custom/adb")            // default: the SDK's adb, as resolved by AGP
+    deviceSerials.add("emulator-5554")     // Default: every connected device.
+    verifyTimeoutSeconds = 30              // How long verifyAppLinks<Variant> waits for the device's verifier.
+    adbExecutable.set("/custom/adb")       // Default: the adb of the SDK that the Android Gradle Plugin resolved.
 }
 ```
 
-`checkAppLinks` always expects the certificate the variant is signed with, resolved as AGP does: `android.injected.signing.*` properties, then the build type, the first flavor, then `defaultConfig`. With Play App Signing users' devices see Google's key instead, so add its fingerprint from Play Console under App integrity.
+`checkAppLinks<Variant>` expects the certificate that the variant is signed with. The plugin resolves that certificate in the same order as the Android Gradle Plugin: `android.injected.signing.*` properties, then the build type, then the first product flavor, then `defaultConfig`. With Play App Signing, users' devices see Google's key instead of yours. Copy that key's fingerprint from Play Console under **App integrity** and add it to `additionalCertificateFingerprints`.
 
-## Verify in CI
+## Run verification in CI
+
+The following GitHub Actions steps boot an emulator, install the release build, verify the App Links, and keep the report even when the job fails:
 
 ```yaml
 - uses: reactivecircus/android-emulator-runner@v2
@@ -80,23 +115,25 @@ appLinks {
   with: { name: app-links-report, path: app/build/reports/app-links/ }
 ```
 
-The release variant needs a signing config, and that key's fingerprint must be in assetlinks.json next to the Play key.
+The release variant needs a signing config, and assetlinks.json must list that key's fingerprint next to the Play App Signing key.
 
-## Notes
+## Limitations
 
-- Gradle 8.0+ and Android Gradle Plugin 8.0+. Built against AGP 8.7.3, tested on Gradle 8.13.
-- Devices below API 31 are skipped.
-- A wildcard host such as `*.example.com` is approved and verified like any other host. `checkAppLinks` fetches assetlinks.json from the base domain for it, which is where Android's verifier looks.
-- Undo on a device: `adb shell pm set-app-links --package <id> 0 all`, then `adb shell pm verify-app-links --re-verify <id>`.
+- The plugin requires Gradle 8.0 or later and Android Gradle Plugin 8.0 or later. The plugin is built against AGP 8.7.3 and tested on Gradle 8.13.
+- The plugin skips devices below API 31, because those devices use the older verification model.
+- For a wildcard host such as `*.example.com`, `checkAppLinks<Variant>` fetches assetlinks.json from `example.com`, which is where Android's verifier looks. The device tasks treat a wildcard host like any other host.
+- To undo an approval by hand, run `adb shell pm set-app-links --package <id> 0 all` and then `adb shell pm verify-app-links --re-verify <id>`.
 
-## Development
+## Develop the plugin
+
+Use the following commands while working on the plugin:
 
 ```bash
-./gradlew check            # tests, ktlint, detekt, plugin validation, API compatibility
-./gradlew spotlessApply    # fix formatting
-./gradlew apiDump          # after an intended change to the public API
+./gradlew check            # Runs the tests, ktlint, detekt, plugin validation, and the API compatibility check.
+./gradlew spotlessApply    # Fixes formatting.
+./gradlew apiDump          # Records an intended change to the public API.
 ```
 
 ## License
 
-[Apache 2.0](LICENSE)
+The plugin is licensed under [Apache 2.0](LICENSE).
